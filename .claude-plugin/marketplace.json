@@ -1,0 +1,24 @@
+{
+  "name": "jackie-qin",
+  "owner": {
+    "name": "Jackie Qin",
+    "url": "https://jackieqin.com"
+  },
+  "description": "Jackie Qin's agent skills — worktree-based parallel-session productivity and the 宣纸 paper-and-ink design language.",
+  "plugins": [
+    {
+      "name": "qin-skills",
+      "source": "./",
+      "description": "Worktree productivity flow (wt-start, wt-close, main-update) plus the 宣纸 (xuan paper) design language behind jackieqin.com.",
+      "category": "productivity",
+      "keywords": [
+        "git",
+        "worktree",
+        "productivity",
+        "design",
+        "ui",
+        "xuanzhi"
+      ]
+    }
+  ]
+}
