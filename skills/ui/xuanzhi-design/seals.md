@@ -2,6 +2,8 @@
 
 The cinnabar seal is the most tempting element in this language and the easiest to ruin. The failure mode is not ugliness — it's turning a chop into a logo, or shipping a character that doesn't exist.
 
+> To actually generate one, use the sibling **zhuanke-seal** skill (`../zhuanke-seal/SKILL.md`) — it implements the full pipeline described here as runnable scripts. This document is the *why* and the usage rules.
+
 ## A chop is not a logo
 
 The one rule everything else follows: **a chop may mark the scroll; it may not be a brand mark.** A glyph repeated as favicon + map pins + status chips + watermark is a logo wearing seal costume, and the whole system reads as branding. If you find the same seal in more than two places, delete it everywhere and start over.

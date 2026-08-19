@@ -1,6 +1,6 @@
 {
   "name": "qin-skills",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Worktree productivity flow (wt-start, wt-close, main-update) plus the 宣纸 (xuan paper) design language behind jackieqin.com.",
   "author": {
     "name": "Jackie Qin",
@@ -22,6 +22,7 @@
     "./skills/productivity/wt-start",
     "./skills/productivity/wt-close",
     "./skills/productivity/main-update",
-    "./skills/ui/xuanzhi-design"
+    "./skills/ui/xuanzhi-design",
+    "./skills/ui/zhuanke-seal"
   ]
 }

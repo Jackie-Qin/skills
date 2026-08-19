@@ -40,6 +40,7 @@ The shared philosophy: **evidence authorizes destruction.** A `MERGED` PR record
 | Skill | What it does |
 | --- | --- |
 | [xuanzhi-design](./skills/ui/xuanzhi-design/SKILL.md) | The 宣纸 (xuan / rice paper) design language: warm paper grounds, subtractive ink, one cinnabar accent, deckled sheets, seal chops, hanging-scroll page structure. Includes deep references on [building paper that reads as paper](./skills/ui/xuanzhi-design/paper.md) and [cutting seals that aren't fake](./skills/ui/xuanzhi-design/seals.md). |
+| [zhuanke-seal](./skills/ui/zhuanke-seal/SKILL.md) | Cut a real-looking Chinese seal (印章) from any text: pick text, style (朱文/白文), glyph source (verified public-domain 说文 小篆, or your own seal font), layout, and color. Ships the full pipeline — Commons glyph fetcher with license verification, 篆刻-faithful composition (屈曲填满, 疏密匀称), stone-erosion carving, potrace to a color-agnostic SVG. |
 
 More categories (ux, engineering) will appear as skills graduate from private use.
 
