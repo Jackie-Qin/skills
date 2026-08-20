@@ -1,6 +1,6 @@
 ---
 name: main-update
-description: Fast-forward primary `main` and sweep stale state — removes worktrees whose PR is MERGED and whose tree is clean, removes worktrees that are ancestors of main with clean trees, deletes local branches whose upstream is `gone` and which are merged into main. Also sweeps remote-side cruft `git fetch --prune` can't reach: deletes orphaned remote-tracking refs owned by no configured remote (e.g. `pr/*`, `pull/*` left by `gh pr checkout`), push-deletes `origin/*` branches whose PR is MERGED (auto-delete-on-merge misses), and reports — never auto-deletes — branches with CLOSED or no PR. Surfaces "halfway work" worktrees (no PR but real WIP, or un-PR'd commits) via a per-candidate question with Open PR / Sweep / Leave options, with a supersession check for untracked files that overlap with main-tracked paths. Stashes/pops the primary checkout around the pull. Refuses to destroy anything dirty without explicit user authorization; refuses to force-push, rebase remote-pushed branches, or push-delete any remote branch not proven MERGED; refuses to auto-PR. Use when asked to "update main", "sync main", "clean up worktrees", "clean up branches", or after a batch of PRs has merged.
+description: Fast-forward primary `main` and sweep stale state — removes worktrees whose PR is MERGED and whose tree is clean, removes worktrees that are ancestors of main with clean trees, deletes local branches whose upstream is `gone` and which are merged into main. Also sweeps remote-side cruft `git fetch --prune` can't reach: deletes orphaned remote-tracking refs owned by no configured remote (e.g. `pr/*`, `pull/*` left by `gh pr checkout`), push-deletes `origin/*` branches whose PR is MERGED (auto-delete-on-merge misses), and reports — never auto-deletes — branches with CLOSED or no PR. Surfaces "halfway work" worktrees (no PR but real WIP, or un-PR'd commits) via a per-candidate question with Open PR / Sweep / Leave options, with a supersession check for untracked files that overlap with main-tracked paths. Stashes/pops the primary checkout around the pull. Refuses to destroy anything dirty without explicit user authorization; refuses to force-push, rebase remote-pushed branches, or push-delete any remote branch not proven MERGED; refuses to auto-PR. Retires each swept worktree's dev-sandbox state and prunes stale/orphaned sandboxes as a disk backstop. Use when asked to "update main", "sync main", "clean up worktrees", "clean up branches", or after a batch of PRs has merged.
 argument-hint: "[--keep <branch1,branch2,...>] [--dry-run]"
 ---
 
@@ -209,11 +209,14 @@ If `--ff-only` refuses (local main diverged from origin), STOP. Do not proceed w
 
 ## Step 5 — Sweep merged worktrees
 
-For each worktree in the sweep list (Step 2A):
+For each worktree in the sweep list (Step 2A), first retire its dev-sandbox state (isolated DerivedData / SPM clones / owned simulator clone; no-op when absent):
 
 ```bash
+command -v dev-sandbox >/dev/null && dev-sandbox ios cleanup --repo <worktree-path>
 git worktree remove <worktree-path>
 ```
+
+If `ios cleanup` refuses (active build / open files), report it and continue — the orphaned sandbox is caught by the Step 6.7 prune backstop.
 
 If `git worktree remove` refuses (e.g., uncommitted change appeared between Step 2 and Step 5), skip that worktree and continue with the rest. **Never pass `--force`.**
 
@@ -263,6 +266,17 @@ done
 Never `git push origin --delete` a branch whose PR is CLOSED, OPEN, or absent, and never one matching `dependabot/*` or a release-automation pattern. **This is the same authorization tier as the force-push prohibition** — a remote branch you can't prove is merged may be a teammate's work. CLOSED-PR and no-PR branches are **not** deleted here; they go to the Step 8 report so the user decides.
 
 **Pre-push hook note:** `git push origin --delete` fires the repo's pre-push hook. A hook that runs preflight/CI needs a working tree and so **fails in a bare primary** (`fatal: this operation must be run in a work tree`). Do **not** reach for `--no-verify` or a raw API call to get around it — both are guardrail circumvention. The robust fixes, in order: (1) make the hook skip delete-only pushes (detect the all-zero `<local-oid>` on stdin and `exit 0` before any working-tree command); (2) run the deletion from a regular worktree whose on-disk hook is current. Never disable the hook to force the delete.
+
+## Step 6.7 — Sandbox prune backstop
+
+If `dev-sandbox` is installed, reclaim sandboxes and simulator clones whose owner worktree is gone or idle (each ~18 GB when built):
+
+```bash
+dev-sandbox ios prune --max-idle-days 7          # dry-run listing; always run this first
+dev-sandbox ios prune --max-idle-days 7 --live   # skip under --dry-run
+```
+
+Prune has its own hard guards (exact-UDID, shutdown state, lease, process/open-file rechecks) and refuses anything untrusted; never widen it with manual `simctl delete` or `rm -rf` on sandbox roots.
 
 ## Step 7 — Pop the stash
 
@@ -319,6 +333,7 @@ Format:
   - no PR (N): <branch> …                                 ← possible teammate WIP / automation
   - bot-managed (N): <branch> …                           ← excluded by policy
 🏷  Tags: N local-only tag(s) not on origin — report only; delete manually if intended.
+🧯 Sandboxes: cleaned N worktree sandboxes; prune retired M stale/orphaned (freed ~X GB) or "dev-sandbox not installed".
 ⏭  Skipped:
   - <branch>: <reason>
   ...

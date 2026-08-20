@@ -58,6 +58,14 @@ Stop on dirty state or divergence. Do not merge, rebase, reset, stash, or clean 
 
 ## 5. Remove the worktree and branch
 
+First retire any dev-sandbox state owned by this worktree (isolated DerivedData, SPM clones, xcresults, owned simulator clone — ~18 GB for a built iOS sandbox):
+
+```bash
+command -v dev-sandbox >/dev/null && dev-sandbox ios cleanup --repo "$WORKTREE_PATH"
+```
+
+`ios cleanup` is a no-op (exit 0) when no sandbox exists. If it refuses (active build, process reference, or open files), stop and report — live activity that blocks sandbox cleanup makes worktree removal unsafe too. A sandbox left behind is caught later by `main-update`'s `ios prune` backstop.
+
 ```bash
 git -C "$ROOT" worktree remove "$WORKTREE_PATH"
 git -C "$ROOT" worktree prune
@@ -91,7 +99,7 @@ Report the primary checkout path, `main` short SHA, removed path, and removed br
 - Never force-remove a dirty worktree.
 - Never mutate a dirty or diverged primary checkout to make cleanup pass.
 - Never delete a standalone branch as a side effect.
-- Never clean build caches or artifacts here.
+- Never clean shared build caches or artifacts here. Sole exception: the worktree-owned dev-sandbox root (Step 5) — it is part of the worktree's lifecycle and its own guards refuse cleanup while anything is live.
 
 ## Related skills
 
