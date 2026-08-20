@@ -72,6 +72,22 @@ git -C "$ROOT" config core.hooksPath <hooks-dir>   # only if the repo documents 
 
 For each repository, inspect its instructions instead of guessing paths.
 
+## 4.5 Seed the build sandbox (Xcode repos)
+
+If `dev-sandbox` is installed and the primary checkout has a warm sandbox, seed the new worktree's Swift-package checkouts via APFS copy-on-write (~2 s for multi-GB checkouts, near-zero disk until divergence):
+
+```bash
+if command -v dev-sandbox >/dev/null; then
+  warm="$(dev-sandbox ios status --repo "$ROOT" 2>/dev/null \
+    | python3 -c 'import json,sys; print(json.load(sys.stdin)["root"])' 2>/dev/null)"
+  if [ -n "$warm" ] && [ -n "$(ls "$warm/SourcePackages" 2>/dev/null)" ]; then
+    dev-sandbox ios prepare --repo "$WORKTREE_PATH" --seed-packages-from "$ROOT"
+  fi
+fi
+```
+
+This step is opportunistic: skip silently when `dev-sandbox` is absent or the primary has no warm sandbox (normal for non-Xcode repos). If the seed itself fails (e.g. the primary's lane is mid-build), report it and continue — the worktree is still valid and the first build simply pays the cold SPM checkout.
+
 ## 5. Verify and report
 
 ```bash
