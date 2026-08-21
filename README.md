@@ -35,6 +35,8 @@ Worktree-based parallel sessions: run many agent sessions on one repo without th
 
 The shared philosophy: **evidence authorizes destruction.** A `MERGED` PR record, an ancestor-of-main proof, or an explicit user choice — never a guess. When in doubt these skills stop, ask, or report; they never force, never rebase pushed branches, never auto-PR.
 
+**Optional [macos-dev-sandbox](https://github.com/Jackie-Qin/macos-dev-sandbox) integration.** A separate MIT tool of mine for least-authority build isolation on macOS. When its `dev-sandbox` CLI is on `PATH`, `wt-start` seeds a new worktree's Swift-package checkouts from a warm sibling sandbox via APFS copy-on-write, `wt-close` retires that worktree's sandbox state (isolated DerivedData, SPM clones, xcresults, owned simulator clone) before removal, and `main-update` does the same per swept worktree plus a prune backstop for orphaned sandboxes. Every call is gated on `command -v dev-sandbox` and no-ops silently when it's missing — none of the three skills require it.
+
 ### ui
 
 | Skill | What it does |
@@ -57,6 +59,11 @@ skills/
       SKILL.md
       paper.md
       seals.md
+    zhuanke-seal/
+      SKILL.md
+      scripts/
+        fetch_glyph.py
+        cut_seal.py
 ```
 
 Each skill is a folder with a `SKILL.md` (frontmatter: `name`, `description`) plus optional reference files the skill links to. This is the standard agent-skills format — it works in Claude Code, and the markdown is portable to any agent that reads skills.
