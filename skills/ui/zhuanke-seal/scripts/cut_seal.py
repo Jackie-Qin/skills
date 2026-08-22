@@ -5,13 +5,16 @@ Pipeline (per real 篆刻 practice):
   render each glyph -> trim to ink -> stretch-fit into its cell (屈曲填满:
   seals legitimately distort glyphs to fill) -> thicken PER GLYPH to a target
   ink density (疏密匀称: sparse characters get fatter strokes so every cell
-  carries equal visual mass) -> draw 界格 rules + border -> noise-erode the
-  silhouette so it reads as carved stone -> potrace to one clean SVG path.
+  carries equal visual mass) -> draw 界格 rules + border -> structured 残破
+  wear (破边 bites, 残断 notches, 印泥不匀 blotching; see WEAR_LEVELS) ->
+  noise-erode the silhouette so it reads as carved stone -> potrace to one
+  clean SVG path.
 
 Usage:
     python3 cut_seal.py --text 上善若水 --glyph-dir ./glyphs \
         [--font /path/to/seal-font.ttf] [--layout auto|single|column|name|grid] \
-        [--style zhuwen|baiwen] [--color '#c6472e'] [--out ./out]
+        [--style zhuwen|baiwen] [--color '#c6472e'] [--out ./out] \
+        [--wear none|light|medium|heavy|<0-100>] [--seed <int>]
 
 Glyph source per character: `<glyph-dir>/<char>-seal.svg` if present
 (fetch with fetch_glyph.py), else rendered from --font if given.
@@ -23,17 +26,25 @@ glyphs (all in Homebrew / apt).
 """
 
 import argparse
+import math
+import random
 import re
 import shutil
 import subprocess
 import sys
 from pathlib import Path
 
-from PIL import Image, ImageColor, ImageDraw, ImageFilter, ImageFont
+from PIL import Image, ImageChops, ImageColor, ImageDraw, ImageFilter, ImageFont
 
 RENDER_PX = 900       # per-glyph render resolution
 CELL = 460            # nominal cell edge at working resolution
 PAPER = "#f3f2ea"     # preview ground
+INSET, BORDER, RULE = 34, 38, 16   # frame geometry shared by every layout
+
+# 残破 (wear): real seals are used stones. Named levels; an integer 0-100 is
+# also accepted. Icon/favicon-size cuts should take none or light — at tiny
+# sizes chipping reads as noise, not age.
+WEAR_LEVELS = {"none": 0, "light": 25, "medium": 50, "heavy": 75}
 
 
 def die(msg: str) -> None:
@@ -136,7 +147,7 @@ def layout_cells(layout: str, n: int, rule: int, field):
 
 def compose(text: str, layout: str, glyphs: list[Image.Image], style: str):
     n = len(text)
-    inset, border, rule = 34, 38, 16
+    inset, border, rule = INSET, BORDER, RULE
     if layout == "single":
         w = h = 1000
     elif layout == "column":
@@ -173,6 +184,142 @@ def compose(text: str, layout: str, glyphs: list[Image.Image], style: str):
             canvas.paste(black, at, g)
 
     return canvas.filter(ImageFilter.MaxFilter(3)) if style == "zhuwen" else canvas
+
+
+# --- 残破 wear ----------------------------------------------------------------
+
+def jagged_blob(rng: random.Random, cx, cy, rx, ry, rot=0.0, n=16):
+    """Irregular polygon around (cx, cy); vertex radius swings 0.45..1.35x."""
+    ca, sa = math.cos(rot), math.sin(rot)
+    pts = []
+    for i in range(n):
+        a = 2 * math.pi * i / n
+        r = 0.45 + rng.random() * 0.9
+        x, y = math.cos(a) * rx * r, math.sin(a) * ry * r
+        pts.append((cx + x * ca - y * sa, cy + x * sa + y * ca))
+    return pts
+
+
+def draw_bite(draw, rng, cx, cy, tang, nx, ny, level, scale, border):
+    """One 破边 event: lobes walking a jittery crack path along the band,
+    never one smooth blob, plus detached debris flecks."""
+    base = scale * (24 + level * 0.42)
+    tvx, tvy = abs(ny), abs(nx)              # unit tangent of this side
+    dir_sign = rng.choice((-1, 1))
+    sx, sy = cx, cy
+    for _ in range(rng.randint(3, 6)):
+        rx = base * (0.5 + rng.random() * 0.65)
+        ry = min(border * (0.75 + rng.random() * 0.85),
+                 rx * (0.8 + rng.random() * 0.6))
+        wob = (rng.random() - 0.5) * border * 0.9
+        draw.polygon(jagged_blob(rng, sx + nx * wob, sy + ny * wob,
+                                 rx, ry, tang + rng.uniform(-0.25, 0.25)), fill=0)
+        adv = base * (0.55 + rng.random() * 0.7) * dir_sign
+        sx += tvx * adv
+        sy += tvy * adv
+    for _ in range(rng.randint(1, 4)):
+        fx = sx + tvx * rng.uniform(-1.4, 1.4) * base \
+            + nx * rng.uniform(-1.6, 1.6) * border
+        fy = sy + tvy * rng.uniform(-1.4, 1.4) * base \
+            + ny * rng.uniform(-1.6, 1.6) * border
+        fr = base * (0.12 + rng.random() * 0.22)
+        draw.polygon(jagged_blob(rng, fx, fy, fr * 1.5, fr,
+                                 rng.uniform(0, math.pi), n=9), fill=0)
+
+
+def edge_gnaw(canvas: Image.Image, rng: random.Random, level: int,
+              scale: float) -> Image.Image:
+    """Pit every ink edge at two granularities — stone grain, not vector."""
+    w, h = canvas.size
+    band = ImageChops.subtract(canvas.filter(ImageFilter.MaxFilter(5)),
+                               canvas.filter(ImageFilter.MinFilter(5)))
+    for cell_px, density in ((max(int(3 * scale), 2), 0.05 + level / 100 * 0.10),
+                             (max(int(7 * scale), 3), 0.03 + level / 100 * 0.09)):
+        grid = Image.new("L", (w // cell_px + 1, h // cell_px + 1))
+        grid.putdata([255 if rng.random() < density else 0
+                      for _ in range(grid.width * grid.height)])
+        noise = grid.resize((w, h), Image.NEAREST)
+        canvas = ImageChops.subtract(canvas, ImageChops.multiply(band, noise))
+    return canvas
+
+
+def wear(canvas: Image.Image, rng: random.Random, level: int,
+         frame: tuple[int, int]) -> Image.Image:
+    """Structured 残破 on the clean mask; level 0-100, frame=(inset, border).
+
+    Runs on the clean binary mask BEFORE carve()'s uniform grain:
+      破边     — composite crack-path bites straddling the border band, with
+                 detached debris flecks
+      残断     — jagged notches punched into glyph/rule strokes
+      印泥不匀  — low-frequency blotch map thinning ink like uneven pressure
+    plus edge_gnaw(). All geometry scales off the canvas long edge."""
+    if level <= 0:
+        return canvas
+    w, h = canvas.size
+    inset, border = frame
+    draw = ImageDraw.Draw(canvas)
+    scale = max(w, h) / 1300.0               # constants tuned at the grid canvas
+
+    sides = [  # (orientation, centerline coord, t range, tangent, inward normal)
+        ("h", inset + border / 2, inset, w - inset, 0.0, (0, 1)),
+        ("h", h - inset - border / 2, inset, w - inset, math.pi, (0, -1)),
+        ("v", inset + border / 2, inset, h - inset, math.pi / 2, (1, 0)),
+        ("v", w - inset - border / 2, inset, h - inset, -math.pi / 2, (-1, 0)),
+    ]
+    for _ in range(1 + int(level / 40)):     # 破边 bites across the band
+        kind, fixed, t0, t1, tang, nrm = sides[rng.randrange(4)]
+        span = t1 - t0
+        if rng.random() < 0.35:              # corner chips read naturally
+            t = t0 + span * rng.choice((0.06, 0.94)) \
+                + rng.uniform(-span * .05, span * .05)
+        else:
+            t = t0 + span * rng.uniform(0.15, 0.85)
+        cx, cy = (fixed, t) if kind == "h" else (t, fixed)
+        draw_bite(draw, rng, cx, cy, tang, nrm[0], nrm[1], level, scale, border)
+
+    f0 = inset + border                      # 残断 stroke notches in the field
+    field = canvas.crop((f0, f0, w - f0, h - f0))
+    ds = 4
+    small = field.resize((max(field.width // ds, 1), max(field.height // ds, 1)),
+                         Image.NEAREST)
+    px = small.load()
+    ink_pts = [(x, y) for y in range(small.height) for x in range(small.width)
+               if px[x, y] > 127]
+    placed, want = [], max(1, round(level / 9))
+    for _ in range(want * 3):
+        if len(placed) >= want or not ink_pts:
+            break
+        qx, qy = ink_pts[rng.randrange(len(ink_pts))]
+        cx, cy = f0 + qx * ds + rng.uniform(-ds, ds), f0 + qy * ds + rng.uniform(-ds, ds)
+        if any((cx - ox) ** 2 + (cy - oy) ** 2 < (46 * scale) ** 2 for ox, oy in placed):
+            continue
+        placed.append((cx, cy))
+        rn = scale * (7 + rng.random() * 12) * (0.75 + level / 250)
+        draw.polygon(jagged_blob(rng, cx, cy, rn, rn, rng.uniform(0, math.pi), n=12),
+                     fill=0)
+
+    canvas = edge_gnaw(canvas, rng, level, scale)
+
+    amp = int(150 * level / 100)             # 印泥不匀 blotchy thinning
+    gw, gh = max(w // 14, 2), max(h // 14, 2)
+    grid = Image.new("L", (gw, gh))
+    grid.putdata([rng.randint(0, 255) for _ in range(gw * gh)])
+    blotch = grid.resize((w, h), Image.BILINEAR).filter(
+        ImageFilter.GaussianBlur(radius=int(26 * scale)))
+    return ImageChops.subtract(canvas, blotch.point(lambda p: p * amp // 255))
+
+
+def resolve_wear(spec: str):
+    """'none'|'light'|'medium'|'heavy' or an integer 0-100 -> level int."""
+    if spec in WEAR_LEVELS:
+        return WEAR_LEVELS[spec]
+    try:
+        level = int(spec)
+    except ValueError:
+        die(f"unknown --wear '{spec}' (use none|light|medium|heavy or 0-100)")
+    if not 0 <= level <= 100:
+        die("--wear integer must be 0-100")
+    return level
 
 
 # --- carve + trace -----------------------------------------------------------
@@ -226,6 +373,11 @@ def main() -> None:
     ap.add_argument("--style", default="zhuwen", choices=["zhuwen", "baiwen"])
     ap.add_argument("--color", default="#c6472e", help="preview color (cinnabar default)")
     ap.add_argument("--out", default="./out")
+    ap.add_argument("--wear", default="light",
+                    help="残破 wear: none|light|medium|heavy or 0-100 (default light)")
+    ap.add_argument("--seed", default=None,
+                    help="wear RNG seed; default derives from text+style+layout, "
+                         "so recuts of the same seal are identical")
     args = ap.parse_args()
 
     require("magick", "potrace", "rsvg-convert")
@@ -247,7 +399,13 @@ def main() -> None:
     font = Path(args.font) if args.font else None
     glyphs = [load_glyph(c, Path(args.glyph_dir), font, out_dir) for c in args.text]
 
+    level = resolve_wear(args.wear)
     canvas = compose(args.text, layout, glyphs, args.style)
+    if level > 0:
+        seed = args.seed if args.seed is not None \
+            else f"zhuanke/{args.text}/{args.style}/{layout}"
+        canvas = wear(canvas.copy(), random.Random(seed), level, (INSET, BORDER))
+        print(f"wear: level {level}, seed {seed!r}")
     clean = out_dir / "seal-clean.png"
     canvas.save(clean)
     carved = out_dir / "seal-carved.png"
