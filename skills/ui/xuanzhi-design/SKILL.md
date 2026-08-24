@@ -26,6 +26,7 @@ Four roles, not four colors. Name your tokens by role:
 Rules that make it hold together:
 
 - **One hot color.** Cinnabar is for seals, key accents, and nothing else. The moment a second saturated color appears, the page stops being paper.
+- **The one admissible exception is a color that is a *material*, not an accent.** 金 — the flecks of 洒金宣 — may join the palette because the foil is *in* the paper: it marks nothing, means nothing, is never spent on anything, and never sits beside a control. The test is whether removing it would change what any element *says*. If no, it is material; if it draws the eye to a thing, it has become a second accent and should be deleted rather than retuned. Build it per [paper.md](./paper.md), and note the counterintuitive part: gold on cream must be **mid-dark and saturated**, because a pale warm fleck is just beige.
 - **Each role ships as a pair** (base + deep/soft) so small text and hairline strokes can step up contrast without introducing a new color. Hairline CJK serif strokes need the deep variant: a color that passes AA-large as a fill can be genuinely unreadable as thin serifs.
 - **Saturated fills read as stickers on paper.** Where you want emphasis, use type size, hairline rules in the accent color, or ink panels — not colored blocks. A cinnabar rectangle on rice paper looks glued on.
 - **Dark theme = role inversion, with one exception.** Paper and ink swap roles; ink pools become glowing frost on the night ground; the celadon pair swaps; cinnabar lifts. But any rule whose *meaning is directional* — "the page descends into dusk", "this recedes" — cannot be expressed in tokens that invert, or one theme will do the opposite of what the words say. Give directional surfaces their own non-swapping token pair and verify the description stays true in both themes.
@@ -50,7 +51,10 @@ When the aesthetic extends to whole-page structure:
 - **The page is one object:** 天头 (head/header) → the painting/content → 题跋 (colophon — the contact/footer zone "where viewers add their own words") → 地头 (foot, closed by a roller bar). One continuous sheet of paper runs the full scroll — per-section paper panels read as a stack of cards, which is the thing this language exists to avoid.
 - **Sections are stations**, each opened by a small vertical inscription in scroll vocabulary (作品 works · 笔法 method · 落款 signature · 题跋 colophon), glossed per the rule above.
 - **Sheets vs plates.** Text sits on deckled paper sheets (soft, feathered — see [paper.md](./paper.md)). Artwork mounts as 画心 plates: the *only* boxed elements on the page (solid ink fill, ~3px radius, hairline celadon mounting rule, cast shadow). A scroll mounts its painting as a defined panel inside soft paper; everything else stays deckled. Never give a text sheet a card edge; never let artwork float unmounted.
-- **The colophon ends darker than everything before it, in both themes** — see the directional-token rule above.
+- **Give the foot no ground of its own — the paper runs to the rod.** This reverses a rule this skill used to state ("the colophon ends darker than everything before it"), and the reversal was paid for four times over. A colophon ground was tried as ink, then as a dedicated non-swapping dark pair, then as a *deeper sheet*, then as a deeper sheet shrunk to just the 地头 strip and given real paper texture. Every version still read as **a different colour at the bottom of the page**, which is the one thing a reader actually notices, and each one drew the same complaint. Once the sheet carries texture — grain, 帘纹, 洒金 — the boundary gets worse, not better, because the material stops dead at it.
+  What ends a hanging scroll is the **地杆**, not a change of colour, and a real scroll's paper does run to its rod. So paint the footer and the roller mount with the *same sheet* as the body: same translucent fill, same column width, same deckle. If the sheet is translucent over living art, the foot must use the same gradient rather than a flat colour of the composited value — a solid fill sits dead wherever the art moves behind the rest of the page.
+  **Delete the retired tokens rather than leaving them unused**, and assert that they are neither declared nor referenced. A colour token left lying around is an invitation to reintroduce the band.
+- **Changing which ground a section sits on invalidates every alpha inside it.** If the section's colors are alphas of `currentColor` (they usually are), a given alpha buys very different contrast on a lighter vs darker ground. Re-measure them all; moving to a lighter ground under dark type is the safe direction, but "safe direction" is not a substitute for the numbers.
 
 ## Motion
 
@@ -59,13 +63,14 @@ When the aesthetic extends to whole-page structure:
 - Write-on reveals for brush strokes: animate a dash mask along the centerline of a *filled* shape, so the reveal is real brush travel.
 - Wrap every animation in `@media (prefers-reduced-motion: no-preference)`; the reduced experience shows the completed state, not a frozen half-state.
 - **Scrolling must never generate marks.** Velocity-driven effects fire every frame of a trackpad gesture and saturate the page; authored waypoint marks (one per station, on first arrival) are chosen — a flick is not.
+- **A 呼吸灯 is allowed; a telemetry blink is not.** An idle status indicator may breathe, but the distinction is strict and worth pinning: a telemetry LED blinks on an *event* and pings outward (expand + fade to nothing + snap back), which claims live truth the page usually cannot back. A 呼吸灯 is the slow symmetric idle lamp — cycle well over a second, `ease-in-out`, and a shared `0%, 100%` frame so it **returns** to where it started. On a light ground the breath must be carried by a halo that *darkens* the paper, never a glow; on the dark theme the same rule lifts off the ground, which is the honest inversion. Keep the indicator's core color constant — a desaturating pulse turns green into grey.
 
 ## Review checklist
 
 When reviewing UI in this language, check in order:
 
-1. Is there exactly one hot color, spent only where it matters?
-2. Does anything glow on the light theme? (Fail.)
+1. Is there exactly one hot color, spent only where it matters? If a second color is present, is it *material* (in the paper, marking nothing) rather than an accent?
+2. Does anything glow on the light theme? (Fail.) Does any indicator blink or ping like live telemetry it cannot back?
 3. Any text sheet with a visible card edge, or artwork without a mount? (Fail.)
 4. Any CJK without meaning + gloss (seals excepted)?
 5. Do directional statements ("deepens", "recedes") stay true in both themes?
